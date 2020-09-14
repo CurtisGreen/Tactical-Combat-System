@@ -1,4 +1,4 @@
-import { Button } from "../ui/button.js";
+import { Unit } from "../units/unit.js";
 import {
     getPointer,
     updateResolution,
@@ -9,6 +9,7 @@ const {
     enable3d,
     Scene3D,
     ExtendedObject3D,
+    ExtendedMesh,
     THREE,
     ThirdPersonControls,
     PointerLock,
@@ -33,6 +34,10 @@ export default class StrategyScene extends Scene3D {
         this.accessThirdDimension();
 
         this.selectionBox = {};
+        this.units = [];
+        this.unitBodies = [];
+        this.selectedUnit = undefined;
+        this.hoveredUnit = undefined;
         this.currentDirection = 0; // Forward, left, down, right
         this.prevInnerWidth = 0;
         this.prevInnerHeight = 0;
@@ -104,51 +109,31 @@ export default class StrategyScene extends Scene3D {
         this.third.add.box({ x: 0, y: 0, z: 2 }, { lambert: { color: "green" } }); // Z
         this.third.add.box({ x: 0, y: 2, z: 0 }, { lambert: { color: "yellow" } }); // Y
 
-        // Add selectable unit
-        this.unit = this.third.add.box(
-            { x: 10, y: 0.5, z: 10 },
-            { lambert: { color: "gray" } }
-        );
-
-        // Show where your cursor is
-        this.selectionBox = this.third.add.box(
-            { x: 1, y: 0, z: 1, width: 1, height: 0.1 },
-            { lambert: { color: 0x0000ff } }
-        );
+        // Add selectable units
+        this.createUnit(10, 0.5, 10);
+        this.createUnit(12, 0.5, 10);
+        this.createUnit(14, 0.5, 10);
 
         // Select or move units on mouse down
         this.input.on("pointerdown", (pointer) => {
-            const [point, object] = this.getIntersection([this.unit, this.ground]);
-            // Clicked on unit
-            if (point && object.id == this.unit.id) {
-                this.unit.material.color.set("red");
-                this.unitSelected = true;
-            }
-            // Clicked on ground
-            else if (this.unitSelected) {
-                this.unit.material.color.set("gray");
-                this.unitSelected = false;
-
-                let endX = point.x;
-                let endZ = point.z;
-                let temp = this.unit.position.clone();
-                this.tweens.add({
-                    targets: temp,
-                    x: endX,
-                    z: endZ,
-                    duration: 1000,
-                    ease: (t) => {
-                        return t;
-                    },
-                    onComplete: () => {},
-                    onUpdate: () => {
-                        this.unit.position.set(temp.x, temp.y, temp.z);
-                    },
-                    delay: 50,
-                });
+            const [point, object] = this.getIntersection([...this.unitBodies, this.ground]);
+            if (point) {
+                // Selected ground, move unit there
+                if (object.id == this.ground.id && this.selectedUnit != undefined) {
+                    this.moveUnit(this.selectedUnit.id, point.x, point.z)
+                }
+                // Select unit
+                else if (object.id != this.ground.id) {
+                    this.selectUnit(object.id);
+                }
             }
         });
 
+        // Show where your cursor is
+        this.selectionBox = new this.third.add.box(
+            { x: 1, y: 0, z: 1, width: 1, height: 0.1 },
+            { lambert: { color: 0x0000ff } }
+        );
         // Directions
         let width = this.cameras.main.width;
         let text = "Move: WASD or hover mouse toward screen edge\n";
@@ -161,8 +146,8 @@ export default class StrategyScene extends Scene3D {
 
     update() {
         this.keyboardMove();
-        this.mouseMove();
-        this.updateSelectionBox();
+        //this.mouseMove();
+        this.updateHoverBox();
 
         cameraDebug(this);
 
@@ -393,32 +378,73 @@ export default class StrategyScene extends Scene3D {
         }
     }
 
-    updateSelectionBox() {
-        const [point, object] = this.getIntersection([this.unit, this.ground]);
+    updateHoverBox() {
+        const [point, object] = this.getIntersection([...this.unitBodies, this.ground]);
         if (point && this.selectionBox.position != undefined) {
-            // Selected unit
-            if (object.id == this.unit.id) {
-                this.selectionBox.visible = false;
-                if (!this.unitSelected) {
-                    this.unit.material.color.set(0x0000ff);
-                }
-            }
-            // Selected ground
-            else {
+            // Hovering ground
+            if (object.id == this.ground.id) {
                 this.selectionBox.position.x = point.x;
                 this.selectionBox.position.y = point.y;
                 this.selectionBox.position.z = point.z;
                 this.selectionBox.visible = true;
 
-                if (!this.unitSelected) {
-                    this.unit.material.color.set("gray");
+                // Remove highlight on current hover
+                if (this.hoveredUnit != undefined) {
+                    this.hoveredUnit.hover(false);
                 }
+                this.hoveredUnit = undefined;
+            }
+            else {
+                this.hoverUnit(object.id);
+                this.selectionBox.visible = false;
             }
         } else {
             this.selectionBox.visible = false;
-            if (!this.unitSelected) {
-                this.unit.material.color.set("gray");
+
+            // Remove highlight on current hover
+            if (this.hoveredUnit != undefined) {
+                this.hoveredUnit.hover(false);
             }
+            this.hoveredUnit = undefined;
         }
+    }
+
+    createUnit(x, y, z) {
+        const unit = new Unit(this, {x, y, z});
+
+        // Store unit class as dictionary and unit body as array
+        this.units[unit.body.id] = unit;
+        this.unitBodies.push(unit.body);
+    }
+
+    hoverUnit(id) {
+        if (this.hoveredUnit != undefined) {
+            this.hoveredUnit.hover(false);
+        }
+        
+        const newHoveredUnit = this.units[id];
+        if (newHoveredUnit != undefined) {
+            newHoveredUnit.hover();
+        }
+        this.hoveredUnit = newHoveredUnit;
+    }
+
+    selectUnit(id) {
+        if (this.selectedUnit != undefined) {
+            this.selectedUnit.select(false);
+        }
+        
+        const newSelectedUnit = this.units[id];
+        if (newSelectedUnit != undefined) {
+            newSelectedUnit.select();
+        }
+        this.selectedUnit = newSelectedUnit;
+    }
+
+    moveUnit(id, x, z) {
+        if (this.units[id] != undefined) {
+            this.units[id].move(x, z);
+        }
+        this.selectedUnit = undefined;
     }
 }
