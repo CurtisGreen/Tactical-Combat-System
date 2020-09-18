@@ -430,15 +430,24 @@ export default class StrategyScene extends Scene3D {
     }
 
     selectUnit(id) {
+        let shoot = false;
         if (this.selectedUnit != undefined) {
-            this.selectedUnit.select(false);
+            //this.selectedUnit.select(false);
+            shoot = true;
         }
         
         const newSelectedUnit = this.units[id];
         if (newSelectedUnit != undefined) {
-            newSelectedUnit.select();
+            // Attacked unit
+            if (shoot) {
+                this.shoot(this.selectedUnit, newSelectedUnit);
+            }
+            // Selected new unit
+            else {
+                newSelectedUnit.select();
+                this.selectedUnit = newSelectedUnit;
+            }
         }
-        this.selectedUnit = newSelectedUnit;
     }
 
     moveUnit(id, x, z) {
@@ -446,5 +455,10 @@ export default class StrategyScene extends Scene3D {
             this.units[id].move(x, z);
         }
         this.selectedUnit = undefined;
+    }
+
+    shoot(srcUnit, destUnit) {
+        const destPos = destUnit.body.position;
+        srcUnit.shoot(destPos.x, destPos.z);
     }
 }

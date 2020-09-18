@@ -65,4 +65,45 @@ export class Unit {
             this.body.material.color.set("gray");
         }
     }
+
+    shoot(destX, destZ) {
+        const srcPos = this.body.position;
+
+        let projectile = this.scene.third.add.box(
+            { 
+                x: srcPos.x, y: srcPos.y, z: srcPos.z,
+                width: .1, height: .1, depth: .5
+            }, 
+            { lambert: { color: "green" } 
+        });
+
+        // Rotate in direction of target
+        const xDiff = destX - srcPos.x;
+        const zDiff = destZ - srcPos.z;
+        if (zDiff == 0) {
+            projectile.rotateY(Math.PI / 2);
+        }
+        else {
+            projectile.rotateY(Math.atan(xDiff / zDiff));
+        }
+
+        let temp = projectile.position.clone();
+        this.scene.tweens.add({
+            targets: temp,
+            x: destX,
+            z: destZ,
+            duration: 1000,
+            ease: (t) => {
+                return t;
+            },
+            onComplete: () => {
+                projectile.visible = false;
+                //this.third.destroy(projectile);
+            },
+            onUpdate: () => {
+                projectile.position.set(temp.x, temp.y, temp.z);
+            },
+            delay: 50,
+        });
+    }
 }
