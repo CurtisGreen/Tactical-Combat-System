@@ -15,7 +15,6 @@ export class Unit {
         this.rangeBoxes = [];
 
         this.createRangeMap();
-        this.showRange(false);
     }
 
     async move(x, z) {
@@ -71,7 +70,7 @@ export class Unit {
 
     async findPaths(srcX, srcZ, destX, destZ, pathArr = []) {
         // Get current block
-        const srcBlock = await this.scene.getGroundBlock(srcX, srcZ);
+        //const srcBlock = await this.scene.getGroundBlock(srcX, srcZ);
 
         // Deep copy path
         let updatedArray = Array.from(pathArr); 
@@ -103,6 +102,48 @@ export class Unit {
         const topBlock = await this.scene.getGroundBlock(srcX + 1, srcZ);
         if (topBlock) {
             await this.findPaths(srcX + 1, srcZ, destX, destZ, updatedArray);
+        }
+    }
+
+    async createRangeMap(srcX = this.position.x, srcZ = this.position.z, pathArr = []) {
+        // Out of range
+        if (pathArr.length > this.range) {
+            return;
+        }
+
+        // Create new range block if it doesn't already exist
+        const blockExists = await this.rangeBlockExists(srcX, srcZ);
+        if (!blockExists) {
+            let rangeBox = this.scene.third.add.box(
+                { 
+                    x: srcX, y: 0, z: srcZ, 
+                    depth: 1, width: 1, height: 0.05 },
+                { lambert: { color: "yellow" } }
+            );
+            rangeBox.visible = false;
+            this.rangeBoxes.push(rangeBox);
+        }
+
+        // Deep copy path
+        let updatedArray = Array.from(pathArr); 
+        updatedArray.push([srcX, srcZ]);
+        
+        // Check up/down/left/right
+        const rightBlock = await this.scene.getGroundBlock(srcX, srcZ + 1);
+        if (rightBlock) {
+            await this.createRangeMap(srcX, srcZ + 1, updatedArray);
+        }
+        const leftBlock = await this.scene.getGroundBlock(srcX, srcZ - 1);
+        if (leftBlock) {
+            await this.createRangeMap(srcX, srcZ - 1, updatedArray);
+        }
+        const botBlock = await this.scene.getGroundBlock(srcX - 1, srcZ);
+        if (botBlock) {
+            await this.createRangeMap(srcX - 1, srcZ, updatedArray);
+        }
+        const topBlock = await this.scene.getGroundBlock(srcX + 1, srcZ);
+        if (topBlock) {
+            await this.createRangeMap(srcX + 1, srcZ, updatedArray);
         }
     }
 
@@ -184,41 +225,27 @@ export class Unit {
         });
     }
 
-    createRangeMap() {
+    async updateRangeMap() {
+        this.showRange(false);
         this.rangeBoxes = [];
-        const curPos = this.body.position;
-
-        for (let col = -1 * this.range; col <= this.range; col++) {
-            const startRow = this.range - Math.abs(col);
-            const endRow = startRow * -1;
-
-            for (let row = startRow; row >= endRow; row--) {
-                let rangeBox = this.scene.third.add.box(
-                    { 
-                        x: col + curPos.x, y: 0, z: row + curPos.z, 
-                        depth: 1, width: 1, height: 0.05 },
-                    { lambert: { color: "yellow" } }
-                );
-                this.rangeBoxes.push(rangeBox);
-            }
-        }
+        await this.createRangeMap();
     }
 
-    updateRangeMap() {
-        const curPos = this.body.position;
+    // Get block by coordinates
+    async rangeBlockExists(x, z) {
+        for (let i = 0; i < this.rangeBoxes.length; i++) {
+            const box = this.rangeBoxes[i];
 
-        // Get offset from center
-        const centerIndex = Math.floor(this.rangeBoxes.length / 2);
-        let centerBox = this.rangeBoxes[centerIndex];
-        if (centerBox != undefined) {
-            const xDiff = curPos.x - centerBox.position.x;
-            const zDiff = curPos.z - centerBox.position.z;
-
-            this.rangeBoxes.forEach(box => {
-                box.position.x += xDiff;
-                box.position.z += zDiff;
-            });
+            // Found
+            if (box.position.x == x && box.position.z == z) {
+                return true;
+            }
+            // Reached end without finding it
+            else if (i == this.rangeBoxes.length - 1) {
+                return false;
+            }
         }
+        return false;
     }
 
     showRange(show = true) {
@@ -228,18 +255,6 @@ export class Unit {
     }
 
     async canShoot(destX, destZ) {
-        // Compare to range map
-        for (let i = 0; i < this.rangeBoxes.length; i++) {
-            const box = this.rangeBoxes[i];
-
-            // Found
-            if (box.position.x == destX && box.position.z == destZ) {
-                return true;
-            }
-            // Reached end without finding it
-            else if (i == this.rangeBoxes.length - 1) {
-                return false;
-            }
-        }
+        return await this.rangeBlockExists(destX, destZ);
     }
 }
