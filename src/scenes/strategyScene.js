@@ -36,14 +36,16 @@ export default class StrategyScene extends Scene3D {
         this.selectionBox = {};
         this.units = [];
         this.unitBodies = [];
+        this.groundBoxes = [];
         this.selectedUnit = undefined;
         this.hoveredUnit = undefined;
+
         this.currentDirection = 0; // Forward, left, down, right
         this.prevInnerWidth = 0;
         this.prevInnerHeight = 0;
     }
 
-    create() {
+    async create() {
         // Get graphics settings
         updateResolution(this);
 
@@ -51,7 +53,7 @@ export default class StrategyScene extends Scene3D {
         this.third.warpSpeed("light", "sky");
 
         // Add ground
-        this.ground = this.third.physics.add.box({
+        const ground = this.third.physics.add.box({
             x: 11.5,
             y: -0.5,
             z: 11.5,
@@ -60,6 +62,27 @@ export default class StrategyScene extends Scene3D {
             height: 1,
             mass: 0,
         });
+        const bridge = this.third.physics.add.box({
+            x: -0.5,
+            y: -0.5,
+            z: 11,
+            width: 5,
+            depth: 1,
+            height: 1,
+            mass: 0,
+        });
+        const ground2 = this.third.physics.add.box({
+            x: -12.5,
+            y: -0.5,
+            z: 11.5,
+            width: 20,
+            depth: 20,
+            height: 1,
+            mass: 0,
+        });
+        this.groundBoxes.push(ground);
+        this.groundBoxes.push(bridge);
+        this.groundBoxes.push(ground2);
 
         // Adjust the camera
         this.angleDiff = 10;
@@ -116,17 +139,7 @@ export default class StrategyScene extends Scene3D {
 
         // Select or move units on mouse down
         this.input.on("pointerdown", (pointer) => {
-            const [point, object] = this.getIntersection([...this.unitBodies, this.ground]);
-            if (point) {
-                // Selected ground, move unit there
-                if (object.id == this.ground.id && this.selectedUnit != undefined) {
-                    this.moveUnit(this.selectedUnit.id, point.x, point.z)
-                }
-                // Select unit
-                else if (object.id != this.ground.id) {
-                    this.selectUnit(object.id);
-                }
-            }
+            this.updateSelectionBox();
         });
 
         // Show where your cursor is
@@ -357,6 +370,21 @@ export default class StrategyScene extends Scene3D {
         }
     }
 
+    async checkGroundId(id) {
+        for (let i = 0; i < this.groundBoxes.length; i++) {
+            const box = this.groundBoxes[i];
+
+            // Found
+            if (box.id == id) {
+                return true;
+            }
+            // Reached end without finding it
+            else if (i == this.groundBoxes.length - 1) {
+                return false;
+            }
+        }
+    }
+
     getIntersection(objects, source = getPointer(this)) {
         if (objects.length != 0) {
             // Check line of sight to object
@@ -379,11 +407,28 @@ export default class StrategyScene extends Scene3D {
         }
     }
 
-    updateHoverBox() {
-        const [point, object] = this.getIntersection([...this.unitBodies, this.ground]);
+    async updateSelectionBox() {
+        const [point, object] = this.getIntersection([...this.unitBodies, ...this.groundBoxes]);
+        if (point) {
+            const isGround = await this.checkGroundId(object.id);
+            // Selected ground, move unit there
+            if (isGround && this.selectedUnit != undefined) {
+                this.moveUnit(this.selectedUnit.id, point.x, point.z)
+            }
+            // Select unit
+            else if (!isGround) {
+                this.selectUnit(object.id);
+            }
+        }
+    }
+
+    async updateHoverBox() {
+        const [point, object] = this.getIntersection([...this.unitBodies, ...this.groundBoxes]);
         if (point && this.selectionBox.position != undefined) {
+            const isGround = await this.checkGroundId(object.id);
+
             // Hovering ground
-            if (object.id == this.ground.id) {
+            if (isGround) {
                 this.selectionBox.position.set(point.x, 0.1, point.z);
                 this.selectionBox.visible = true;
 
@@ -393,11 +438,14 @@ export default class StrategyScene extends Scene3D {
                 }
                 this.hoveredUnit = undefined;
             }
+            // Hover unit
             else {
                 this.hoverUnit(object.id);
                 this.selectionBox.visible = false;
             }
-        } else {
+        }
+        // Hovering nothing
+        else {
             this.selectionBox.visible = false;
 
             // Remove highlight on current hover
