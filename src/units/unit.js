@@ -10,6 +10,12 @@ export class Unit {
             position,
             {lambert: {color: "gray"}}
         );
+
+        this.range = 5;
+        this.rangeBoxes = [];
+
+        this.createRangeMap();
+        this.showRange(false);
     }
 
     move(x, z) {
@@ -23,7 +29,9 @@ export class Unit {
             ease: (t) => {
                 return t;
             },
-            onComplete: () => {},
+            onComplete: () => {
+                this.updateRangeMap();
+            },
             onUpdate: () => {
                 this.body.position.set(temp.x, temp.y, temp.z);
             },
@@ -57,6 +65,8 @@ export class Unit {
 
     select(select = true) {
         this.isSelected = select;
+        this.showRange(select);
+
         if (select) {
             this.body.material.color.set("red");
             this.scene.currentUnit = this;
@@ -105,5 +115,64 @@ export class Unit {
             },
             delay: 50,
         });
+    }
+
+    createRangeMap() {
+        this.rangeBoxes = [];
+        const curPos = this.body.position;
+
+        for (let col = -1 * this.range; col <= this.range; col++) {
+            const startRow = this.range - Math.abs(col);
+            const endRow = startRow * -1;
+
+            for (let row = startRow; row >= endRow; row--) {
+                let rangeBox = this.scene.third.add.box(
+                    { 
+                        x: col + curPos.x, y: 0, z: row + curPos.z, 
+                        depth: 1, width: 1, height: 0.05 },
+                    { lambert: { color: "yellow" } }
+                );
+                this.rangeBoxes.push(rangeBox);
+            }
+        }
+    }
+
+    updateRangeMap() {
+        const curPos = this.body.position;
+
+        // Get offset from center
+        const centerIndex = Math.floor(this.rangeBoxes.length / 2);
+        let centerBox = this.rangeBoxes[centerIndex];
+        if (centerBox != undefined) {
+            const xDiff = curPos.x - centerBox.position.x;
+            const zDiff = curPos.z - centerBox.position.z;
+
+            this.rangeBoxes.forEach(box => {
+                box.position.x += xDiff;
+                box.position.z += zDiff;
+            });
+        }
+    }
+
+    showRange(show = true) {
+        this.rangeBoxes.forEach(box => {
+            box.visible = show;
+        });
+    }
+
+    async canShoot(destX, destZ) {
+        // Compare to range map
+        for (let i = 0; i < this.rangeBoxes.length; i++) {
+            const box = this.rangeBoxes[i];
+
+            // Found
+            if (box.position.x == destX && box.position.z == destZ) {
+                return true;
+            }
+            // Reached end without finding it
+            else if (i == this.rangeBoxes.length - 1) {
+                return false;
+            }
+        }
     }
 }

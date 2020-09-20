@@ -131,7 +131,7 @@ export default class StrategyScene extends Scene3D {
 
         // Show where your cursor is
         this.selectionBox = new this.third.add.box(
-            { x: 1, y: 0, z: 1, width: 1, height: 0.1 },
+            { x: 1, y: 0.3, z: 1, width: 1, height: 0.05 },
             { lambert: { color: 0x0000ff } }
         );
         // Directions
@@ -383,9 +383,7 @@ export default class StrategyScene extends Scene3D {
         if (point && this.selectionBox.position != undefined) {
             // Hovering ground
             if (object.id == this.ground.id) {
-                this.selectionBox.position.x = point.x;
-                this.selectionBox.position.y = point.y;
-                this.selectionBox.position.z = point.z;
+                this.selectionBox.position.set(point.x, 0.1, point.z);
                 this.selectionBox.visible = true;
 
                 // Remove highlight on current hover
@@ -430,23 +428,27 @@ export default class StrategyScene extends Scene3D {
     }
 
     selectUnit(id) {
-        let shoot = false;
-        if (this.selectedUnit != undefined) {
-            //this.selectedUnit.select(false);
-            shoot = true;
-        }
-        
         const newSelectedUnit = this.units[id];
-        if (newSelectedUnit != undefined) {
-            // Attacked unit
-            if (shoot) {
+        if (newSelectedUnit == undefined) {
+            console.log("Invalid unit selected");
+            return;
+        }
+
+        // A unit is currently selected
+        if (this.selectedUnit != undefined) {
+            // Same unit selected twice, de-select
+            if (this.selectedUnit.id == id) {
+                this.selectedUnit.select(false);
+                this.selectedUnit = undefined;
+            }
+            else {
                 this.shoot(this.selectedUnit, newSelectedUnit);
             }
-            // Selected new unit
-            else {
-                newSelectedUnit.select();
-                this.selectedUnit = newSelectedUnit;
-            }
+        }
+        // No unit is selected, selected new unit
+        else {
+            newSelectedUnit.select();
+            this.selectedUnit = newSelectedUnit;
         }
     }
 
@@ -457,8 +459,14 @@ export default class StrategyScene extends Scene3D {
         this.selectedUnit = undefined;
     }
 
-    shoot(srcUnit, destUnit) {
+    async shoot(srcUnit, destUnit) {
         const destPos = destUnit.body.position;
-        srcUnit.shoot(destPos.x, destPos.z);
+        const canShoot = await srcUnit.canShoot(destPos.x, destPos.z);
+        if (canShoot) {
+            srcUnit.shoot(destPos.x, destPos.z);
+        }
+        else {
+            console.log("Out of range");
+        }
     }
 }
