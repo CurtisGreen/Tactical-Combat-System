@@ -20,30 +20,27 @@ export class Unit {
 
     async move(x, z) {
         this.select(false);
-        // let temp = this.body.position.clone();
-        // this.scene.tweens.add({
-        //     targets: temp,
-        //     x: x,
-        //     z: z,
-        //     duration: 1000,
-        //     ease: (t) => {
-        //         return t;
-        //     },
-        //     onComplete: () => {
-        //         this.updateRangeMap();
-        //     },
-        //     onUpdate: () => {
-        //         this.body.position.set(temp.x, temp.y, temp.z);
-        //     },
-        //     delay: 50,
-        // });
 
-        await this.findPath(this.position.x, this.position.z, x, z);
+        // Get all possible paths
+        this.curPaths = [];
+        await this.findPaths(this.position.x, this.position.z, x, z);
 
-        // Clear traverse flags afterwards
-        this.scene.groundBoxes.forEach(box => {
-            box.traversed = false;
-        })
+        // Choose shortest one
+        if (this.curPaths.length > 0) {
+            let minPath = this.curPaths[0];
+            this.curPaths.forEach((pathArr, index) => {
+                if (pathArr.length < minPath.length) {
+                    minPath = pathArr;
+                }
+                if (index == this.curPaths.length - 1) {
+                    console.log("Shortest path", minPath);
+                    this.moveAlongPath(minPath);
+                }
+            });
+        }
+        else {
+            console.log("there are no cur paths")
+        }
     }
 
     moveAlongPath(pathArr, index = 0) {
@@ -72,55 +69,41 @@ export class Unit {
         });
     }
 
-    async findPath(srcX, srcZ, destX, destZ, pathArr = []) {
-        // Found destination
-        if (srcX == destX && srcZ == destZ) {
-            pathArr.push([srcX, srcZ]);
-            console.log("got to end", pathArr);
-            this.moveAlongPath(pathArr);
-            return true;
-        }
-        // Out of range
-        else if (pathArr.length > this.range) {
-            return false;
-        }
-
+    async findPaths(srcX, srcZ, destX, destZ, pathArr = []) {
         // Get current block
         const srcBlock = await this.scene.getGroundBlock(srcX, srcZ);
-        srcBlock.traversed = true;
-        let updatedArray = Array.from(pathArr); // Deep copy
+
+        // Deep copy path
+        let updatedArray = Array.from(pathArr); 
         updatedArray.push([srcX, srcZ]);
+
+        // Found destination
+        if (srcX == destX && srcZ == destZ) {
+            this.curPaths.push(updatedArray);
+            return;
+        }
+        // Out of range
+        else if (updatedArray.length > this.range) {
+            return;
+        }
         
         // Check up/down/left/right
-        const topBlock = await this.scene.getGroundBlock(srcX, srcZ + 1);
-        if (topBlock && topBlock.traversed != true) {
-            const result = await this.findPath(srcX, srcZ + 1, destX, destZ, updatedArray);
-            if (result) {
-                return true;
-            }
+        const rightBlock = await this.scene.getGroundBlock(srcX, srcZ + 1);
+        if (rightBlock) {
+            await this.findPaths(srcX, srcZ + 1, destX, destZ, updatedArray);
         }
-        const botBlock = await this.scene.getGroundBlock(srcX, srcZ - 1);
-        if (botBlock && botBlock.traversed != true) {
-            const result = await this.findPath(srcX, srcZ - 1, destX, destZ, updatedArray);
-            if (result) {
-                return true;
-            }
+        const leftBlock = await this.scene.getGroundBlock(srcX, srcZ - 1);
+        if (leftBlock) {
+            await this.findPaths(srcX, srcZ - 1, destX, destZ, updatedArray);
         }
-        const leftBlock = await this.scene.getGroundBlock(srcX - 1, srcZ);
-        if (leftBlock && leftBlock.traversed != true) {
-            const result = await this.findPath(srcX - 1, srcZ, destX, destZ, updatedArray);
-            if (result) {
-                return true;
-            }
+        const botBlock = await this.scene.getGroundBlock(srcX - 1, srcZ);
+        if (botBlock) {
+            await this.findPaths(srcX - 1, srcZ, destX, destZ, updatedArray);
         }
-        const rightBlock = await this.scene.getGroundBlock(srcX + 1, srcZ);
-        if (rightBlock && rightBlock.traversed != true) {
-            const result = await this.findPath(srcX + 1, srcZ, destX, destZ, updatedArray);
-            if (result) {
-                return true;
-            }
+        const topBlock = await this.scene.getGroundBlock(srcX + 1, srcZ);
+        if (topBlock) {
+            await this.findPaths(srcX + 1, srcZ, destX, destZ, updatedArray);
         }
-        return false;
     }
 
     get id() {
