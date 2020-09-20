@@ -53,36 +53,41 @@ export default class StrategyScene extends Scene3D {
         this.third.warpSpeed("light", "sky");
 
         // Add ground
-        const ground = this.third.physics.add.box({
-            x: 11.5,
-            y: -0.5,
-            z: 11.5,
-            width: 20,
-            depth: 20,
-            height: 1,
-            mass: 0,
-        });
-        const bridge = this.third.physics.add.box({
-            x: -0.5,
-            y: -0.5,
-            z: 11,
-            width: 5,
-            depth: 1,
-            height: 1,
-            mass: 0,
-        });
-        const ground2 = this.third.physics.add.box({
-            x: -12.5,
-            y: -0.5,
-            z: 11.5,
-            width: 20,
-            depth: 20,
-            height: 1,
-            mass: 0,
-        });
-        this.groundBoxes.push(ground);
-        this.groundBoxes.push(bridge);
-        this.groundBoxes.push(ground2);
+        for (let x = 2; x < 22; x++) {
+            for (let z = 2; z < 23; z++) {
+                const ground = this.third.physics.add.box({
+                    x: x,
+                    y: -0.5,
+                    z: z,
+                    mass: 0,
+                });
+                this.groundBoxes.push(ground);
+            }
+        }
+        // Add bridge
+        for (let x = -2; x < 2; x++) {
+            for (let z = 12; z < 13; z++) {
+                const bridge = this.third.physics.add.box({
+                    x: x,
+                    y: -0.5,
+                    z: z,
+                    mass: 0,
+                });
+                this.groundBoxes.push(bridge);
+            }
+        }
+        // Add ground 2
+        for (let x = -22; x < -2; x++) {
+            for (let z = 2; z < 23; z++) {
+                const ground = this.third.physics.add.box({
+                    x: x,
+                    y: -0.5,
+                    z: z,
+                    mass: 0,
+                });
+                this.groundBoxes.push(ground);
+            }
+        }
 
         // Adjust the camera
         this.angleDiff = 10;
@@ -162,7 +167,7 @@ export default class StrategyScene extends Scene3D {
         );
         // Directions
         let width = this.cameras.main.width;
-        let text = "Move: WASD or hover mouse toward screen edge\n";
+        let text = "Move: WASD\n";
         text += "Rotate: left/right arrow keys\n";
         text += "Zoom: mouse wheel or up/down arrow keys\n";
         text += "Move block: click block then click another location\n";
@@ -390,6 +395,22 @@ export default class StrategyScene extends Scene3D {
             // Found
             if (box.id == id) {
                 return true;
+            }
+            // Reached end without finding it
+            else if (i == this.groundBoxes.length - 1) {
+                return false;
+            }
+        }
+    }
+
+    // Get block by coordinates
+    async getGroundBlock(x, z) {
+        for (let i = 0; i < this.groundBoxes.length; i++) {
+            const box = this.groundBoxes[i];
+
+            // Found
+            if (box.position.x == x && box.position.z == z) {
+                return box;
             }
             // Reached end without finding it
             else if (i == this.groundBoxes.length - 1) {

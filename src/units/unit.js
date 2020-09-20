@@ -18,25 +18,109 @@ export class Unit {
         this.showRange(false);
     }
 
-    move(x, z) {
+    async move(x, z) {
         this.select(false);
+        // let temp = this.body.position.clone();
+        // this.scene.tweens.add({
+        //     targets: temp,
+        //     x: x,
+        //     z: z,
+        //     duration: 1000,
+        //     ease: (t) => {
+        //         return t;
+        //     },
+        //     onComplete: () => {
+        //         this.updateRangeMap();
+        //     },
+        //     onUpdate: () => {
+        //         this.body.position.set(temp.x, temp.y, temp.z);
+        //     },
+        //     delay: 50,
+        // });
+
+        await this.findPath(this.position.x, this.position.z, x, z);
+
+        // Clear traverse flags afterwards
+        this.scene.groundBoxes.forEach(box => {
+            box.traversed = false;
+        })
+    }
+
+    moveAlongPath(pathArr, index = 0) {
         let temp = this.body.position.clone();
         this.scene.tweens.add({
             targets: temp,
-            x: x,
-            z: z,
-            duration: 1000,
+            x: pathArr[index][0],
+            z: pathArr[index][1],
+            duration: 300,
             ease: (t) => {
                 return t;
             },
             onComplete: () => {
-                this.updateRangeMap();
+                //this.updateRangeMap();
+                if (pathArr.length > index + 1) {
+                    this.moveAlongPath(pathArr, index + 1);
+                }
+                else {
+                    this.updateRangeMap()
+                }
             },
             onUpdate: () => {
                 this.body.position.set(temp.x, temp.y, temp.z);
             },
             delay: 50,
         });
+    }
+
+    async findPath(srcX, srcZ, destX, destZ, pathArr = []) {
+        // Found destination
+        if (srcX == destX && srcZ == destZ) {
+            pathArr.push([srcX, srcZ]);
+            console.log("got to end", pathArr);
+            this.moveAlongPath(pathArr);
+            return true;
+        }
+        // Out of range
+        else if (pathArr.length > this.range) {
+            return false;
+        }
+
+        // Get current block
+        const srcBlock = await this.scene.getGroundBlock(srcX, srcZ);
+        srcBlock.traversed = true;
+        let updatedArray = Array.from(pathArr); // Deep copy
+        updatedArray.push([srcX, srcZ]);
+        
+        // Check up/down/left/right
+        const topBlock = await this.scene.getGroundBlock(srcX, srcZ + 1);
+        if (topBlock && topBlock.traversed != true) {
+            const result = await this.findPath(srcX, srcZ + 1, destX, destZ, updatedArray);
+            if (result) {
+                return true;
+            }
+        }
+        const botBlock = await this.scene.getGroundBlock(srcX, srcZ - 1);
+        if (botBlock && botBlock.traversed != true) {
+            const result = await this.findPath(srcX, srcZ - 1, destX, destZ, updatedArray);
+            if (result) {
+                return true;
+            }
+        }
+        const leftBlock = await this.scene.getGroundBlock(srcX - 1, srcZ);
+        if (leftBlock && leftBlock.traversed != true) {
+            const result = await this.findPath(srcX - 1, srcZ, destX, destZ, updatedArray);
+            if (result) {
+                return true;
+            }
+        }
+        const rightBlock = await this.scene.getGroundBlock(srcX + 1, srcZ);
+        if (rightBlock && rightBlock.traversed != true) {
+            const result = await this.findPath(srcX + 1, srcZ, destX, destZ, updatedArray);
+            if (result) {
+                return true;
+            }
+        }
+        return false;
     }
 
     get id() {
