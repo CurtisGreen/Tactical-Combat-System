@@ -139,7 +139,8 @@ export default class StrategyScene extends Scene3D {
         let text = "Move: WASD or hover mouse toward screen edge\n";
         text += "Rotate: left/right arrow keys\n";
         text += "Zoom: mouse wheel or up/down arrow keys\n";
-        text += "Move block: click block then click another location";
+        text += "Move block: click block then click another location\n";
+        text += "Shoot: select block then click another block within range";
         this.directions = this.add.text(width / 2, 40, text, { color: "black" });
         this.directions.setOrigin(0.5, 0);
     }
