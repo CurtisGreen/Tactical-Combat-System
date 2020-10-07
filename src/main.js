@@ -4,7 +4,8 @@ import StrategyScene from "./scenes/strategyScene.js";
 
 const config = {
     type: Phaser.WEBGL,
-    backgroundColor: "#ffffff",
+    transparent: true,
+    //backgroundColor: "#ffffff",
     scale: {
         autoCenter: Phaser.Scale.CENTER_BOTH,
         width: window.innerWidth * Math.max(1, window.devicePixelRatio / 2) - 10,

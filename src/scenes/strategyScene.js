@@ -161,7 +161,7 @@ export default class StrategyScene extends Scene3D {
         });
 
         // Show where your cursor is
-        this.selectionBox = new this.third.add.box(
+        this.selectionBox = this.third.add.box(
             { x: 1, y: 0.3, z: 1, width: 1, height: 0.05 },
             { lambert: { color: 0x0000ff } }
         );
