@@ -32,7 +32,7 @@ export class Unit {
                     minPath = pathArr;
                 }
                 if (index == this.curPaths.length - 1) {
-                    console.log("Shortest path", minPath);
+                    //console.log("Shortest path", minPath);
                     this.moveAlongPath(minPath);
                 }
             });

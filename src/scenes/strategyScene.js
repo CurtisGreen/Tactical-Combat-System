@@ -24,6 +24,11 @@ export default class StrategyScene extends Scene3D {
         super({ key: "StrategyScene" });
     }
 
+    preload() {
+        this.third.load.preload('grass', '../../assets/img/grass.jpg');
+        this.third.load.preload('heightmap', '../../assets/img/heightmap-simple.png');
+    }
+
     init(data) {
         if (data.length != undefined) {
             let [width, height] = data;
@@ -36,7 +41,11 @@ export default class StrategyScene extends Scene3D {
         this.selectionBox = {};
         this.units = [];
         this.unitBodies = [];
+
         this.groundBoxes = [];
+        this.groundMap = {};
+        this.createdGroundMap = false;
+
         this.selectedUnit = undefined;
         this.hoveredUnit = undefined;
 
@@ -89,6 +98,35 @@ export default class StrategyScene extends Scene3D {
             }
         }
 
+        // load grass texture
+        const grass = await this.third.load.texture('grass');
+        grass.wrapS = THREE.RepeatWrapping;
+        grass.wrapT = THREE.RepeatWrapping;
+        grass.repeat.set(4, 4);
+
+        // height map from http://danni-three.blogspot.com/2013/09/threejs-heightmaps.html
+        this.third.load.texture('heightmap').then(heightmap => {
+            const mesh = this.third.heightMap.add(heightmap);
+            if (mesh) {
+                // Convert
+                mesh.geometry = this.third.transform.geometryToBufferGeometry(mesh.geometry);
+
+                // Add custom material or a texture
+                mesh.material = new THREE.MeshPhongMaterial({ map: grass });
+
+                // Position, scale, rotate etc. the mesh before adding physics to it
+                mesh.scale.set(2, 2, 2);
+                mesh.position.set(20, -2, 0);
+
+                // Add physics
+                this.third.physics.add.existing(mesh, { mass: 0, collisionFlags: 1 });
+                this.groundBoxes.push(mesh);
+                this.mesh = mesh;
+                console.log("done loading mesh")
+                
+            }
+        });
+
         // Adjust the camera
         this.angleDiff = 10;
         this.maxCameraY = 15;
@@ -98,7 +136,7 @@ export default class StrategyScene extends Scene3D {
         this.third.camera.lookAt(startX + this.angleDiff, 0, 0);
 
         // Controls
-        this.keys = this.input.keyboard.addKeys({
+        this.keys = await this.input.keyboard.addKeys({
             w: "w",
             a: "a",
             s: "s",
@@ -176,7 +214,7 @@ export default class StrategyScene extends Scene3D {
         this.directions.setOrigin(0.5, 0);
     }
 
-    update() {
+    update(time) {
         this.keyboardMove();
         //this.mouseMove();
         this.updateHoverBox();
@@ -216,6 +254,12 @@ export default class StrategyScene extends Scene3D {
             updateResolution(this);
             this.prevInnerWidth = window.innerWidth;
             this.prevInnerHeight = window.innerHeight;
+        }
+
+        // Initialize things that are dependent on the mesh
+        if (time > 2000 && !this.createdGroundMap) {
+            this.generate2dGroundMap();
+            this.createdGroundMap = true;
         }
     }
 
@@ -271,15 +315,15 @@ export default class StrategyScene extends Scene3D {
 
     keyboardMove() {
         // Move map with wasd
-        if (this.keys.w.isDown) {
+        if (this.keys?.w.isDown) {
             this.moveDirection("forward");
-        } else if (this.keys.s.isDown) {
+        } else if (this.keys?.s.isDown) {
             this.moveDirection("backward");
         }
 
-        if (this.keys.d.isDown) {
+        if (this.keys?.d.isDown) {
             this.moveDirection("right");
-        } else if (this.keys.a.isDown) {
+        } else if (this.keys?.a.isDown) {
             this.moveDirection("left");
         }
     }
@@ -403,23 +447,54 @@ export default class StrategyScene extends Scene3D {
         }
     }
 
+    generate2dGroundMap() {
+        const minX = -50,
+            maxX = 50,
+            minZ = -50,
+            maxZ = 50;
+
+        this.groundBoxes.forEach(box => {
+            if (box.body.name == "heightmap") {
+                console.log("has heightmap")
+            }
+        })
+
+        for (let x = minX; x < maxX; x++) {
+            for (let z = minZ; z < maxZ; z++) {
+                const key = String(x) + String(z);
+                const isGround = this.getVerticalIntersection(this.groundBoxes, {x, y: 10, z});
+                this.groundMap[key] = isGround;
+            }
+        }
+        console.log("done gen mesh")
+    }
+
     // Get block by coordinates
     async getGroundBlock(x, z) {
-        for (let i = 0; i < this.groundBoxes.length; i++) {
-            const box = this.groundBoxes[i];
+        //const output = this.testgetIntersection(this.groundBoxes, {x, y: 1, z});
+        const key = String(x) + String(z);
+        const output = this.groundMap[key];
+        return output;
+    }
 
-            // Found
-            if (box.position.x == x && box.position.z == z) {
-                return box;
+    getVerticalIntersection(objects, position) {
+        if (objects.length != 0) {
+            // Check line of sight to objects, angle straight down (-1 y)
+            const raycaster = new THREE.Raycaster();
+            raycaster.set(position, {x: 0, y: -1, z: 0});
+            const intersection = raycaster.intersectObjects(objects);
+
+            if (intersection.length != 0) {
+                return true;
+            } else {
+                return false
             }
-            // Reached end without finding it
-            else if (i == this.groundBoxes.length - 1) {
-                return false;
-            }
+        } else {
+            return false;
         }
     }
 
-    getIntersection(objects, source = getPointer(this)) {
+    getPointerIntersection(objects, source = getPointer(this)) {
         if (objects.length != 0) {
             // Check line of sight to object
             const raycaster = new THREE.Raycaster();
@@ -442,14 +517,15 @@ export default class StrategyScene extends Scene3D {
     }
 
     async updateSelectionBox() {
-        const [point, object] = this.getIntersection([...this.unitBodies, ...this.groundBoxes]);
+        const [point, object] = this.getPointerIntersection([...this.unitBodies, ...this.groundBoxes]);
         if (point) {
+            console.log(point);
             const isGround = await this.checkGroundId(object.id);
             // Selected ground, move unit there
             if (isGround && this.selectedUnit != undefined) {
                 this.moveUnit(this.selectedUnit.id, point.x, point.z)
             }
-            // Select unit
+            // Select units
             else if (!isGround) {
                 this.selectUnit(object.id);
             }
@@ -457,7 +533,7 @@ export default class StrategyScene extends Scene3D {
     }
 
     async updateHoverBox() {
-        const [point, object] = this.getIntersection([...this.unitBodies, ...this.groundBoxes]);
+        const [point, object] = this.getPointerIntersection([...this.unitBodies, ...this.groundBoxes]);
         if (point && this.selectionBox.position != undefined) {
             const isGround = await this.checkGroundId(object.id);
 
@@ -510,7 +586,7 @@ export default class StrategyScene extends Scene3D {
         this.hoveredUnit = newHoveredUnit;
     }
 
-    selectUnit(id) {
+    async selectUnit(id) {
         const newSelectedUnit = this.units[id];
         if (newSelectedUnit == undefined) {
             console.log("Invalid unit selected");
