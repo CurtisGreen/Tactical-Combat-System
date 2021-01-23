@@ -25,8 +25,8 @@ export default class StrategyScene extends Scene3D {
     }
 
     preload() {
-        this.third.load.preload('grass', '../../assets/img/grass.jpg');
-        this.third.load.preload('heightmap', '../../assets/img/heightmap-simple.png');
+        this.third.load.preload('grass', 'assets/img/grass.jpg');
+        this.third.load.preload('heightmap', 'assets/img/heightmap-simple.png');
     }
 
     init(data) {
